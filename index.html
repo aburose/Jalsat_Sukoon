@@ -19,8 +19,8 @@
       <span>جلسات سكون الشاطئية</span>
     </div>
     <div class="nav-links">
-      <a href="index.html" class="active"><i class="fas fa-book"></i> الحجز</a>
-      <a href="dashboard.html"><i class="fas fa-chart-line"></i> لوحة التحكم</a>
+      <a href="index.html" class="active"><i class="fas fa-calendar-check"></i> الحجز</a>
+      <a href="dashboard.html"><i class="fas fa-chart-pie"></i> لوحة التحكم</a>
     </div>
   </div>
 </nav>
@@ -47,28 +47,14 @@
           
           <!-- جلسة 101 -->
           <div class="session-option" data-session="101">
-            <i class="fas fa-campground"></i>
+            <i class="fas fa-umbrella-beach"></i>
             <span>جلسة 101</span>
-            
-            <!-- معرض صور مصغر داخل جلسة 101 -->
-            <div class="session-mini-gallery">
-              <img src="101-5.jpg" alt="تصميم رومانسي" onclick="event.stopPropagation(); openLightbox('101-5.jpg')">
-              <img src="101-6.jpg" alt="جلسة بروجكتر" onclick="event.stopPropagation(); openLightbox('101-6.jpg')">
-              <img src="101-7.jpg" alt="تزيين بالبالونات" onclick="event.stopPropagation(); openLightbox('101-7.jpg')">
-            </div>
           </div>
           
           <!-- جلسة 102 -->
           <div class="session-option" data-session="102">
-            <i class="fas fa-umbrella-beach"></i>
+            <i class="fas fa-water"></i>
             <span>جلسة 102</span>
-            
-            <!-- معرض صور مصغر داخل جلسة 102 -->
-            <div class="session-mini-gallery">
-              <img src="102-1.jpg" alt="جلسة 102" onclick="event.stopPropagation(); openLightbox('102-1.jpg')">
-              <img src="102-2.jpg" alt="جلسة 102" onclick="event.stopPropagation(); openLightbox('102-2.jpg')">
-              <img src="102-3.jpg" alt="جلسة 102" onclick="event.stopPropagation(); openLightbox('102-3.jpg')">
-            </div>
           </div>
           
         </div>
@@ -80,14 +66,14 @@
         <div class="package-selector">
           <!-- الباقة الفضية -->
           <div class="package-option silver" data-package="silver">
-            <div class="package-icon">🥈</div>
+            <div class="package-icon"><i class="fas fa-medal" style="color: #b8c5d1; font-size: 2.5em; filter: drop-shadow(0 0 8px rgba(184,197,209,0.4));"></i></div>
             <h3>الباقة الفضية</h3>
             <ul class="silver-features">
-              <li><i class="fas fa-shield-alt"></i> خصوصية تامة بتيزار مرتفع</li>
+              <li><i class="fas fa-shield-halved"></i> خصوصية تامة بتيزار مرتفع</li>
               <li><i class="fas fa-check-circle"></i> جلسة متكاملة تتضمن:</li>
-              <li class="sub-feature"><i class="fas fa-gamepad"></i> جاكارو</li>
+              <li class="sub-feature"><i class="fas fa-dice"></i> جاكارو</li>
               <li class="sub-feature"><i class="fas fa-tint"></i> ماء</li>
-              <li class="sub-feature"><i class="fas fa-headphones"></i> سماعات</li>
+              <li class="sub-feature"><i class="fas fa-headphones-simple"></i> سماعات</li>
               <li><i class="fas fa-users"></i> شخصان فقط</li>
             </ul>
 
@@ -128,17 +114,17 @@
 
           <!-- الباقة الذهبية -->
           <div class="package-option gold" data-package="gold">
-            <div class="package-icon">🥇</div>
+            <div class="package-icon"><i class="fas fa-crown" style="color: #d4af37; font-size: 2.5em; filter: drop-shadow(0 0 8px rgba(212,175,55,0.5));"></i></div>
             <h3>الباقة الذهبية</h3>
             <ul class="gold-features">
-              <li><i class="fas fa-shield-alt"></i> خصوصية تامة بتيزار مرتفع</li>
+              <li><i class="fas fa-shield-halved"></i> خصوصية تامة بتيزار مرتفع</li>
               <li><i class="fas fa-check-circle"></i> جلسة متكاملة تتضمن:</li>
-              <li class="sub-feature"><i class="fas fa-coffee"></i> ركن قهوة</li>
-              <li class="sub-feature"><i class="fas fa-video"></i> بروجكتر</li>
-              <li class="sub-feature"><i class="fas fa-camera-retro"></i> مرآة للتصوير</li>
-              <li class="sub-feature"><i class="fas fa-gamepad"></i> جاكارو</li>
+              <li class="sub-feature"><i class="fas fa-mug-hot"></i> ركن قهوة</li>
+              <li class="sub-feature"><i class="fas fa-photo-film"></i> بروجكتر</li>
+              <li class="sub-feature"><i class="fas fa-camera"></i> مرآة للتصوير</li>
+              <li class="sub-feature"><i class="fas fa-dice"></i> جاكارو</li>
               <li class="sub-feature"><i class="fas fa-tint"></i> ماء</li>
-              <li class="sub-feature"><i class="fas fa-headphones"></i> سماعات</li>
+              <li class="sub-feature"><i class="fas fa-headphones-simple"></i> سماعات</li>
               <li><i class="fas fa-users"></i> حتى 10 أشخاص</li>
             </ul>
 
@@ -327,7 +313,7 @@
   <!-- أوقات العمل -->
   <section class="working-hours glass" style="margin-top: 40px;">
     <h3 style="color: var(--light); font-size: 1.4em; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; justify-content: center;">
-      <i class="fas fa-clock" style="color: var(--gold);"></i> أوقات العمل
+      <i class="fas fa-hourglass-half" style="color: var(--gold);"></i> أوقات العمل
     </h3>
     
     <div class="hours-grid">
@@ -411,9 +397,9 @@
 <!-- تنبيه -->
 <div class="toast" id="toast"></div>
 
-<!-- Firebase SDK -->
+<!-- Firebase SDK (Firestore) -->
 <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
 
 <script src="script.js"></script>
 

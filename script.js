@@ -1,18 +1,17 @@
-// ========== إعدادات Firebase ==========
+// ========== إعدادات Firebase (Firestore) ==========
 const firebaseConfig = {
-  apiKey: "AIzaSyCZEPitEz7nIX-_7NEEghntEafGQh6Aceg",
-  authDomain: "sukoon-996bd.firebaseapp.com",
-  databaseURL: "https://sukoon-996bd-default-rtdb.firebaseio.com",
-  projectId: "sukoon-996bd",
-  storageBucket: "sukoon-996bd.firebasestorage.app",
-  messagingSenderId: "601075541682",
-  appId: "1:601075541682:web:75c974f13602d98ebdcbab"
+  apiKey: "AIzaSyBQw74Em4Gcqrd3n9SCEKqEV6yuXA2Sgmg",
+  authDomain: "sukoon2026-e0430.firebaseapp.com",
+  projectId: "sukoon2026-e0430",
+  storageBucket: "sukoon2026-e0430.firebasestorage.app",
+  messagingSenderId: "128613817411",
+  appId: "1:128613817411:web:2e1736fa0e4b31bc2308f6"
 };
 
 if (!firebase.apps.length) {
   firebase.initializeApp(firebaseConfig);
 }
-const database = firebase.database();
+const db = firebase.firestore(); // Firestore
 
 // ========== الإعدادات ==========
 const START_HOUR = 17;
@@ -138,17 +137,20 @@ function updatePeopleCounter() {
   }
 }
 
-// ========== تحميل الحجوزات (من Firebase) ==========
+// ========== تحميل الحجوزات (من Firestore) ==========
 window.cachedBookings = [];
 
 function getBookings() {
   return window.cachedBookings || [];
 }
 
-function fetchBookingsFromFirebase(callback) {
-  database.ref('bookings').on('value', (snapshot) => {
-    const data = snapshot.val();
-    window.cachedBookings = data ? Object.values(data) : [];
+function fetchBookingsFromFirestore(callback) {
+  db.collection('bookings').onSnapshot((snapshot) => {
+    const data = [];
+    snapshot.forEach((doc) => {
+      data.push({ id: doc.id, ...doc.data() });
+    });
+    window.cachedBookings = data;
     if (callback) callback();
     if (typeof populateStartTimes === 'function') populateStartTimes();
     if (typeof renderBookedSlots === 'function') renderBookedSlots();
@@ -156,7 +158,8 @@ function fetchBookingsFromFirebase(callback) {
 }
 
 function saveBooking(b) {
-  database.ref('bookings/' + b.id).set(b)
+  // نستخدم id كمعرف مستند
+  db.collection('bookings').doc(String(b.id)).set(b)
     .then(() => {
       console.log('تم حفظ الحجز بنجاح');
     })
@@ -477,7 +480,7 @@ $('confirmBtn').addEventListener('click', () => {
   $('payAmount').textContent = `${state.total} ريال`;
   $('paymentModal').classList.add('active');
 
-  fetchBookingsFromFirebase(); // جلب البيانات المحدثة
+  fetchBookingsFromFirestore();
   renderBookedSlots();
   resetForm();
 });
@@ -538,11 +541,6 @@ document.querySelectorAll('.session-option').forEach(el => {
   });
 });
 
-let refreshInterval = setInterval(() => {
-  populateStartTimes();
-  renderBookedSlots();
-}, 3000);
-
 // ========== منطق إظهار/إخفاء المعارض ==========
 function setupGallery() {
   const silverGallery = document.getElementById('gallerySilver');
@@ -601,29 +599,6 @@ function closeLightbox() {
 
 document.addEventListener('DOMContentLoaded', setupGallery);
 
-// ========== منطق إظهار صورة جلسة 101 الرومانسية ==========
-function setupSessionImages() {
-  const romanticImg = document.getElementById('romanticImg101');
-  const session101 = document.querySelector('.session-option[data-session="101"]');
-  const session102 = document.querySelector('.session-option[data-session="102"]');
-
-  if (!romanticImg || !session101 || !session102) return;
-
-  session101.addEventListener('click', () => {
-    romanticImg.style.display = 'block';
-  });
-
-  session102.addEventListener('click', () => {
-    romanticImg.style.display = 'none';
-  });
-
-  if (session101.classList.contains('selected')) {
-    romanticImg.style.display = 'block';
-  }
-}
-
-document.addEventListener('DOMContentLoaded', setupSessionImages);
-
 // ========== Init ==========
 populateStartTimes();
 setupDateLimits();
@@ -632,7 +607,7 @@ updatePeopleCounter();
 renderBookedSlots();
 updateSummary();
 
-// جلب البيانات الأولية من Firebase
+// جلب البيانات الأولية من Firestore
 document.addEventListener('DOMContentLoaded', () => {
-  fetchBookingsFromFirebase();
+  fetchBookingsFromFirestore();
 });
