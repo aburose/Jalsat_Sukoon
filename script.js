@@ -1,25 +1,17 @@
-// ========== استيراد Firebase SDK v10 ==========
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import {
-  getFirestore,
-  collection,
-  doc,
-  setDoc,
-  onSnapshot
-} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
-// ========== إعدادات Firebase ==========
+// ========== إعدادات Firebase (Firestore) ==========
 const firebaseConfig = {
-  apiKey: "AIzaSyCb29ClTbHwIEHl_ze5RHBZEN6jwZiySOc",
-  authDomain: "db2026-5807e.firebaseapp.com",
-  projectId: "db2026-5807e",
-  storageBucket: "db2026-5807e.firebasestorage.app",
-  messagingSenderId: "305741717208",
-  appId: "1:305741717208:web:4d7c6ea3d92fdaff8c41ad"
+  apiKey: "AIzaSyBQw74Em4Gcqrd3n9SCEKqEV6yuXA2Sgmg",
+  authDomain: "sukoon2026-e0430.firebaseapp.com",
+  projectId: "sukoon2026-e0430",
+  storageBucket: "sukoon2026-e0430.firebasestorage.app",
+  messagingSenderId: "128613817411",
+  appId: "1:128613817411:web:2e1736fa0e4b31bc2308f6"
 };
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+if (!firebase.apps.length) {
+  firebase.initializeApp(firebaseConfig);
+}
+const db = firebase.firestore(); // Firestore
 
 // ========== الإعدادات ==========
 const START_HOUR = 17;
@@ -32,6 +24,7 @@ const SILVER_MAX_HOURS = 6;
 const GOLD_PRICES = { 1: 80, 2: 160, 3: 240, 4: 320, 5: 350, 6: 400 };
 const GOLD_MAX_HOURS = 6;
 
+const MAX_PEOPLE = { silver: 2, gold: 10 };
 const CELEBRATION_PRICE = 300;
 
 let state = {
@@ -56,88 +49,48 @@ const formatDate = (iso) => {
 };
 const toISO = (d) => d.toISOString().split('T')[0];
 
-// ========== الحجوزات ==========
-window.cachedBookings = [];
-
-function getBookings() {
-  return window.cachedBookings || [];
-}
-
-function fetchBookingsFromFirestore(callback) {
-  const bookingsRef = collection(db, 'bookings');
-  onSnapshot(bookingsRef, (snapshot) => {
-    const data = [];
-    snapshot.forEach((docSnap) => {
-      data.push({ id: docSnap.id, ...docSnap.data() });
+// ========== باكيج الاحتفالات ==========
+function toggleCelebration(element) {
+  const checkbox = element.querySelector('.celebration-input');
+  
+  if (element.classList.contains('active')) {
+    element.classList.remove('active');
+    checkbox.checked = false;
+    state.celebration = false;
+  } else {
+    document.querySelectorAll('.celebration-package').forEach(pkg => {
+      pkg.classList.remove('active');
+      pkg.querySelector('.celebration-input').checked = false;
     });
-    window.cachedBookings = data;
-    if (callback) callback();
-    if (typeof populateStartTimes === 'function') populateStartTimes();
-    if (typeof renderBookedSlots === 'function') renderBookedSlots();
-  }, (error) => {
-    console.error("❌ خطأ في جلب الحجوزات:", error);
-  });
+    
+    element.classList.add('active');
+    checkbox.checked = true;
+    state.celebration = true;
+  }
+  
+  updateSummary();
 }
 
-async function saveBooking(b) {
-  try {
-    await setDoc(doc(db, 'bookings', String(b.id)), b);
-    console.log('✅ تم حفظ الحجز بنجاح في Firestore');
-    return true;
-  } catch (error) {
-    console.error('❌ خطأ في حفظ الحجز:', error);
-    return false;
-  }
-}
+// ========== عدّاد عدد الأشخاص ==========
+function changePeople(delta) {
+  const input = $('people');
+  if (input.disabled) return;
 
-// ========== دوال مساعدة ==========
-function showToast(msg, type = 'error') {
-  const t = $('toast');
-  if (!t) return;
-  t.textContent = msg;
-  t.className = 'toast show' + (type === 'success' ? ' success' : '');
-  clearTimeout(window._toastTimer);
-  window._toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
-}
+  const min = parseInt(input.min) || 1;
+  const max = parseInt(input.max) || 10;
+  let current = parseInt(input.value) || min;
+  let next = current + delta;
 
-function updateSummary() {
-  const hours = parseInt($('hours').value) || 0;
-  const people = parseInt($('people').value) || 0;
-  const date = $('bookingDate').value;
-  const startTime = $('startTime').value;
+  if (next < min) next = min;
+  if (next > max) next = max;
 
-  if (state.package === 'silver') {
-    state.total = hours <= SILVER_MAX_HOURS ? (SILVER_PRICES[hours] || 0) : 0;
-  } else if (state.package === 'gold') {
-    state.total = hours <= GOLD_MAX_HOURS ? (GOLD_PRICES[hours] || 0) : 0;
-  } else {
-    state.total = 0;
-  }
-
-  if (state.celebration) state.total += CELEBRATION_PRICE;
-
-  if (state.session && state.package && hours > 0 && date && startTime) {
-    $('summary').style.display = 'block';
-    $('sumSession').textContent = `جلسة ${state.session}`;
-    $('sumPackage').textContent = state.package === 'silver' ? 'الباقة الفضية 🥈' : 'الباقة الذهبية 🥇';
-    $('sumDate').textContent = formatDate(date);
-    const start = parseInt(startTime);
-    const end = start + hours;
-    $('sumTime').textContent = `${formatHour(start)} - ${formatHour(end)}`;
-    $('sumHours').textContent = `${hours} ساعة`;
-    $('sumPeople').textContent = `${people} أشخاص`;
-    if ($('sumCelebration')) {
-      $('sumCelebration').textContent = state.celebration ? `مضاف (+${CELEBRATION_PRICE} ر.س)` : 'بدون';
-    }
-    $('sumTotal').textContent = `${state.total} ريال`;
-  } else {
-    $('summary').style.display = 'none';
-  }
+  input.value = next;
+  updatePeopleCounter();
+  updateSummary();
 }
 
 function updatePeopleCounter() {
   const input = $('people');
-  if (!input) return;
   const label = $('peopleLabel');
   const badge = $('peopleBadge');
   const iconsBox = $('peopleIcons');
@@ -155,7 +108,7 @@ function updatePeopleCounter() {
   else if (current >= 3 && current <= 10) text = `${current} أشخاص`;
   else text = `${current} شخص`;
 
-  if (label) label.textContent = text;
+  label.textContent = text;
   if (badge) badge.textContent = current;
 
   if (iconsBox) {
@@ -167,55 +120,74 @@ function updatePeopleCounter() {
     }
   }
 
-  if (minusBtn) minusBtn.disabled = input.disabled || current <= min;
-  if (plusBtn) plusBtn.disabled = input.disabled || current >= max;
+  minusBtn.disabled = input.disabled || current <= min;
+  plusBtn.disabled = input.disabled || current >= max;
 
-  if (counterWrap) {
-    if (input.disabled) counterWrap.classList.add('disabled');
-    else counterWrap.classList.remove('disabled');
+  if (current !== parseInt(counterWrap.dataset.prev || current)) {
+    const btn = current > parseInt(counterWrap.dataset.prev || current) ? plusBtn : minusBtn;
+    btn.classList.add('pulse');
+    setTimeout(() => btn.classList.remove('pulse'), 400);
   }
-}
+  counterWrap.dataset.prev = current;
 
-function changePeople(delta) {
-  const input = $('people');
-  if (!input || input.disabled) return;
-
-  const min = parseInt(input.min) || 1;
-  const max = parseInt(input.max) || 10;
-  let current = parseInt(input.value) || min;
-  let next = current + delta;
-
-  if (next < min) next = min;
-  if (next > max) next = max;
-
-  input.value = next;
-  updatePeopleCounter();
-  updateSummary();
-}
-
-function toggleCelebration(element) {
-  const checkbox = element.querySelector('.celebration-input');
-  
-  if (element.classList.contains('active')) {
-    element.classList.remove('active');
-    checkbox.checked = false;
-    state.celebration = false;
+  if (input.disabled) {
+    counterWrap.classList.add('disabled');
   } else {
-    document.querySelectorAll('.celebration-package').forEach(pkg => {
-      pkg.classList.remove('active');
-      pkg.querySelector('.celebration-input').checked = false;
-    });
-    element.classList.add('active');
-    checkbox.checked = true;
-    state.celebration = true;
+    counterWrap.classList.remove('disabled');
   }
-  updateSummary();
 }
 
-// ========== توليد أوقات البدء ==========
+// ========== تحميل الحجوزات (من Firestore) ==========
+window.cachedBookings = [];
+
+function getBookings() {
+  return window.cachedBookings || [];
+}
+
+function fetchBookingsFromFirestore(callback) {
+  db.collection('bookings').onSnapshot((snapshot) => {
+    const data = [];
+    snapshot.forEach((doc) => {
+      data.push({ id: doc.id, ...doc.data() });
+    });
+    window.cachedBookings = data;
+    if (callback) callback();
+    if (typeof populateStartTimes === 'function') populateStartTimes();
+    if (typeof renderBookedSlots === 'function') renderBookedSlots();
+  });
+}
+
+function saveBooking(b) {
+  // نستخدم id كمعرف مستند
+  db.collection('bookings').doc(String(b.id)).set(b)
+    .then(() => {
+      console.log('تم حفظ الحجز بنجاح');
+    })
+    .catch((error) => {
+      console.error('خطأ في حفظ الحجز:', error);
+      showToast('حدث خطأ في حفظ الحجز، يرجى المحاولة لاحقاً');
+    });
+}
+
+// ========== هل الوقت محجوز؟ ==========
+function isTimeBooked(startH, hours) {
+  const date = $('bookingDate').value;
+  const session = state.session || '101';
+  if (!date) return false;
+
+  const bookings = getBookings().filter(b =>
+    b.date === date &&
+    b.session === session &&
+    (b.status || 'pending') !== 'cancelled'
+  );
+
+  const endH = startH + hours;
+  return bookings.some(b => startH < b.endHour && endH > b.startHour);
+}
+
+// ========== توليد أوقات البدء (مع شطب الأوقات المحجوزة) ==========
 function populateStartTimes() {
   const sel = $('startTime');
-  if (!sel) return;
   const currentValue = sel.value;
   sel.innerHTML = '<option value="">اختر الوقت</option>';
 
@@ -230,6 +202,7 @@ function populateStartTimes() {
   for (let h = START_HOUR; h <= END_HOUR - 1; h++) {
     const opt = document.createElement('option');
     opt.value = h;
+
     const isBooked = bookings.some(b => h >= b.startHour && h < b.endHour);
 
     if (isBooked) {
@@ -238,9 +211,12 @@ function populateStartTimes() {
       opt.style.color = '#ef4444';
       opt.style.textDecoration = 'line-through';
       opt.style.opacity = '0.6';
+      opt.dataset.booked = 'true';
     } else {
       opt.textContent = formatHour(h);
+      opt.dataset.booked = 'false';
     }
+
     sel.appendChild(opt);
   }
 
@@ -251,9 +227,9 @@ function populateStartTimes() {
   }
 }
 
+// ========== ضبط حدود التاريخ ==========
 function setupDateLimits() {
   const dateInput = $('bookingDate');
-  if (!dateInput) return;
   const today = new Date();
   const max = new Date();
   max.setDate(today.getDate() + MAX_DAYS_AHEAD);
@@ -261,6 +237,7 @@ function setupDateLimits() {
   dateInput.max = toISO(max);
 }
 
+// ========== التحديد الافتراضي ==========
 function setDefaults() {
   const defaultSession = document.querySelector('.session-option[data-session="101"]');
   if (defaultSession) {
@@ -276,22 +253,139 @@ function setDefaults() {
 
     const peopleInput = $('people');
     const hint = $('peopleHint');
-    if (peopleInput) {
-      peopleInput.value = 2;
-      peopleInput.max = 2;
-      peopleInput.min = 2;
-      peopleInput.disabled = true;
-    }
-    if (hint) hint.innerHTML = '<i class="fas fa-info-circle"></i> الباقة الفضية: شخصان فقط';
+    peopleInput.value = 2;
+    peopleInput.max = 2;
+    peopleInput.min = 2;
+    peopleInput.disabled = true;
+    hint.innerHTML = '<i class="fas fa-info-circle"></i> الباقة الفضية: شخصان فقط';
     updatePeopleCounter();
   }
+
   populateStartTimes();
 }
 
+// ========== اختيار الجلسة ==========
+document.querySelectorAll('.session-option').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.session-option').forEach(x => x.classList.remove('selected'));
+    el.classList.add('selected');
+    state.session = el.dataset.session;
+    populateStartTimes();
+    updateSummary();
+    renderBookedSlots();
+  });
+});
+
+// ========== اختيار الباقة ==========
+document.querySelectorAll('.package-option').forEach(el => {
+  el.addEventListener('click', () => {
+    document.querySelectorAll('.package-option').forEach(x => x.classList.remove('selected'));
+    el.classList.add('selected');
+    state.package = el.dataset.package;
+
+    const peopleInput = $('people');
+    const hint = $('peopleHint');
+    const curHours = parseInt($('hours').value) || 0;
+
+    if (state.package === 'silver') {
+      peopleInput.value = 2;
+      peopleInput.min = 2;
+      peopleInput.max = 2;
+      peopleInput.disabled = true;
+      hint.innerHTML = '<i class="fas fa-info-circle"></i> الباقة الفضية: شخصان فقط';
+
+      if (curHours > SILVER_MAX_HOURS) {
+        $('hours').value = '';
+        showToast('الباقة الفضية: الحد الأقصى 6 ساعات');
+      }
+    } else {
+      peopleInput.disabled = false;
+      peopleInput.min = 1;
+      peopleInput.max = 10;
+      if (parseInt(peopleInput.value) > 10) peopleInput.value = 10;
+      if (parseInt(peopleInput.value) < 1) peopleInput.value = 1;
+      hint.innerHTML = '<i class="fas fa-info-circle"></i> الباقة الذهبية: حتى 10 أشخاص';
+
+      if (curHours > GOLD_MAX_HOURS) {
+        $('hours').value = '';
+        showToast('الباقة الذهبية: الحد الأقصى 6 ساعات');
+      }
+    }
+
+    updatePeopleCounter();
+    updateSummary();
+  });
+});
+
+// ========== حساب الوقت ==========
+function calculateEnd(startH, hours) {
+  return startH + hours;
+}
+
+function isOverlapping(startH, endH, bookings, session, date) {
+  return bookings.some(b => {
+    if (b.session !== session || b.date !== date) return false;
+    if (b.status === 'cancelled') return false;
+    return startH < b.endHour && endH > b.startHour;
+  });
+}
+
+// ========== تحديث الملخص ==========
+function updateSummary() {
+  const hours = parseInt($('hours').value) || 0;
+  const people = parseInt($('people').value) || 0;
+  const date = $('bookingDate').value;
+  const startTime = $('startTime').value;
+
+  if (state.package === 'silver') {
+    if (hours > SILVER_MAX_HOURS) {
+      $('hours').value = '';
+      showToast('الباقة الفضية: الحد الأقصى 6 ساعات');
+      state.total = 0;
+    } else {
+      state.total = SILVER_PRICES[hours] || 0;
+    }
+  } else if (state.package === 'gold') {
+    if (hours > GOLD_MAX_HOURS) {
+      $('hours').value = '';
+      showToast('الباقة الذهبية: الحد الأقصى 6 ساعات');
+      state.total = 0;
+    } else {
+      state.total = GOLD_PRICES[hours] || 0;
+    }
+  } else {
+    state.total = 0;
+  }
+
+  if (state.celebration) {
+    state.total += CELEBRATION_PRICE;
+  }
+
+  if (state.session && state.package && hours > 0 && date && startTime) {
+    $('summary').style.display = 'block';
+    $('sumSession').textContent = `جلسة ${state.session}`;
+    $('sumPackage').textContent = state.package === 'silver' ? 'الباقة الفضية 🥈' : 'الباقة الذهبية 🥇';
+    $('sumDate').textContent = formatDate(date);
+    const start = parseInt(startTime);
+    const end = calculateEnd(start, hours);
+    $('sumTime').textContent = `${formatHour(start)} - ${formatHour(end)}`;
+    $('sumHours').textContent = `${hours} ساعة`;
+    $('sumPeople').textContent = `${people} أشخاص`;
+    
+    if ($('sumCelebration')) {
+      $('sumCelebration').textContent = state.celebration ? `مضاف (+${CELEBRATION_PRICE} ر.س)` : 'بدون';
+    }
+    
+    $('sumTotal').textContent = `${state.total} ريال`;
+  } else {
+    $('summary').style.display = 'none';
+  }
+}
+
+// ========== عرض الجلسات المحجوزة ==========
 function renderBookedSlots() {
   const date = $('bookingDate').value;
   const box = $('bookedSlots');
-  if (!box) return;
 
   box.classList.add('refreshing');
   setTimeout(() => box.classList.remove('refreshing'), 500);
@@ -317,6 +411,80 @@ function renderBookedSlots() {
   `).join('');
 }
 
+// ========== المستمعات ==========
+['bookingDate', 'startTime', 'hours'].forEach(id => {
+  $(id).addEventListener('input', updateSummary);
+});
+
+// ========== تأكيد الحجز ==========
+$('confirmBtn').addEventListener('click', () => {
+  const name = $('customerName').value.trim();
+  const phone = $('customerPhone').value.trim();
+  const date = $('bookingDate').value;
+  const startTime = $('startTime').value;
+  const hours = parseInt($('hours').value) || 0;
+  const people = parseInt($('people').value) || 0;
+
+  if (!state.session) return showToast('الرجاء اختيار رقم الجلسة');
+  if (!state.package) return showToast('الرجاء اختيار الباقة');
+  if (!date) return showToast('الرجاء اختيار تاريخ الحجز');
+  if (!startTime) return showToast('الرجاء اختيار وقت البدء');
+  if (!hours) return showToast('الرجاء اختيار عدد الساعات');
+  if (!name) return showToast('الرجاء إدخال الاسم');
+  if (!phone || !/^05\d{8}$/.test(phone)) return showToast('رقم الجوال غير صحيح (05xxxxxxxx)');
+
+  if (state.package === 'silver' && people !== 2) {
+    return showToast('الباقة الفضية: شخصان فقط');
+  }
+  if (state.package === 'gold' && (people < 1 || people > 10)) {
+    return showToast('الباقة الذهبية: من 1 إلى 10 أشخاص');
+  }
+
+  if (state.package === 'silver' && hours > SILVER_MAX_HOURS) {
+    return showToast(`الباقة الفضية: الحد الأقصى ${SILVER_MAX_HOURS} ساعات`);
+  }
+  if (state.package === 'gold' && hours > GOLD_MAX_HOURS) {
+    return showToast(`الباقة الذهبية: الحد الأقصى ${GOLD_MAX_HOURS} ساعات`);
+  }
+
+  const startH = parseInt(startTime);
+  const endH = calculateEnd(startH, hours);
+  if (endH > END_HOUR) {
+    return showToast(`وقت الانتهاء يتجاوز 6 صباحاً. الحد الأقصى للبدء هو ${formatHour(END_HOUR - hours)}`);
+  }
+
+  const bookings = getBookings();
+  if (isOverlapping(startH, endH, bookings, state.session, date)) {
+    populateStartTimes();
+    return showToast('⛔ الوقت الذي اخترته محجوز. الرجاء اختيار وقت آخر');
+  }
+
+  const booking = {
+    id: Date.now(),
+    session: state.session,
+    package: state.package,
+    date,
+    startHour: startH,
+    endHour: endH,
+    hours,
+    people,
+    name,
+    phone,
+    total: state.total,
+    status: 'pending',
+    celebration: state.celebration,
+    createdAt: new Date().toISOString(),
+  };
+  saveBooking(booking);
+
+  $('payAmount').textContent = `${state.total} ريال`;
+  $('paymentModal').classList.add('active');
+
+  fetchBookingsFromFirestore();
+  renderBookedSlots();
+  resetForm();
+});
+
 function resetForm() {
   document.querySelectorAll('.session-option, .package-option').forEach(x => x.classList.remove('selected'));
   $('bookingDate').value = '';
@@ -336,211 +504,68 @@ function resetForm() {
   populateStartTimes();
 }
 
-// ========== الأحداث الرئيسية (بعد تحميل DOM) ==========
-document.addEventListener('DOMContentLoaded', () => {
-  console.log("✅ DOM جاهز - بدء التهيئة");
-
-  // 1. اختيار الجلسة
-  document.querySelectorAll('.session-option').forEach(el => {
-    el.addEventListener('click', () => {
-      document.querySelectorAll('.session-option').forEach(x => x.classList.remove('selected'));
-      el.classList.add('selected');
-      state.session = el.dataset.session;
-      populateStartTimes();
-      updateSummary();
-      renderBookedSlots();
-    });
-  });
-
-  // 2. اختيار الباقة
-  document.querySelectorAll('.package-option').forEach(el => {
-    el.addEventListener('click', () => {
-      document.querySelectorAll('.package-option').forEach(x => x.classList.remove('selected'));
-      el.classList.add('selected');
-      state.package = el.dataset.package;
-
-      const peopleInput = $('people');
-      const hint = $('peopleHint');
-      const curHours = parseInt($('hours').value) || 0;
-
-      if (state.package === 'silver') {
-        peopleInput.value = 2;
-        peopleInput.min = 2;
-        peopleInput.max = 2;
-        peopleInput.disabled = true;
-        hint.innerHTML = '<i class="fas fa-info-circle"></i> الباقة الفضية: شخصان فقط';
-        if (curHours > SILVER_MAX_HOURS) {
-          $('hours').value = '';
-          showToast('الباقة الفضية: الحد الأقصى 6 ساعات');
-        }
-      } else {
-        peopleInput.disabled = false;
-        peopleInput.min = 1;
-        peopleInput.max = 10;
-        if (parseInt(peopleInput.value) > 10) peopleInput.value = 10;
-        if (parseInt(peopleInput.value) < 1) peopleInput.value = 1;
-        hint.innerHTML = '<i class="fas fa-info-circle"></i> الباقة الذهبية: حتى 10 أشخاص';
-        if (curHours > GOLD_MAX_HOURS) {
-          $('hours').value = '';
-          showToast('الباقة الذهبية: الحد الأقصى 6 ساعات');
-        }
-      }
-      updatePeopleCounter();
-      updateSummary();
-    });
-  });
-
-  // 3. زر تأكيد الحجز
-  const confirmBtn = $('confirmBtn');
-  if (confirmBtn) {
-    confirmBtn.addEventListener('click', async () => {
-      console.log("🖱️ تم الضغط على زر التأكيد");
-
-      const name = $('customerName').value.trim();
-      const phone = $('customerPhone').value.trim();
-      const date = $('bookingDate').value;
-      const startTime = $('startTime').value;
-      const hours = parseInt($('hours').value) || 0;
-      const people = parseInt($('people').value) || 0;
-
-      if (!state.session) return showToast('الرجاء اختيار رقم الجلسة');
-      if (!state.package) return showToast('الرجاء اختيار الباقة');
-      if (!date) return showToast('الرجاء اختيار تاريخ الحجز');
-      if (!startTime) return showToast('الرجاء اختيار وقت البدء');
-      if (!hours) return showToast('الرجاء اختيار عدد الساعات');
-      if (!name) return showToast('الرجاء إدخال الاسم');
-      if (!phone || !/^05\d{8}$/.test(phone)) return showToast('رقم الجوال غير صحيح (05xxxxxxxx)');
-
-      if (state.package === 'silver' && hours > SILVER_MAX_HOURS) {
-        return showToast(`الباقة الفضية: الحد الأقصى ${SILVER_MAX_HOURS} ساعات`);
-      }
-      if (state.package === 'gold' && hours > GOLD_MAX_HOURS) {
-        return showToast(`الباقة الذهبية: الحد الأقصى ${GOLD_MAX_HOURS} ساعات`);
-      }
-
-      const startH = parseInt(startTime);
-      const endH = startH + hours;
-      if (endH > END_HOUR) {
-        return showToast(`وقت الانتهاء يتجاوز 6 صباحاً`);
-      }
-
-      const isOverlap = getBookings().some(b => {
-        if (b.session !== state.session || b.date !== date) return false;
-        if (b.status === 'cancelled') return false;
-        return startH < b.endHour && endH > b.startHour;
-      });
-      if (isOverlap) {
-        populateStartTimes();
-        return showToast('⛔ الوقت الذي اخترته محجوز. الرجاء اختيار وقت آخر');
-      }
-
-      const booking = {
-        id: Date.now(),
-        session: state.session,
-        package: state.package,
-        date,
-        startHour: startH,
-        endHour: endH,
-        hours,
-        people,
-        name,
-        phone,
-        total: state.total,
-        status: 'pending',
-        celebration: state.celebration,
-        createdAt: new Date().toISOString(),
-      };
-
-      console.log("📤 جاري حفظ الحجز:", booking);
-      const saved = await saveBooking(booking);
-      console.log("📥 نتيجة الحفظ:", saved);
-
-      if (saved) {
-        $('payAmount').textContent = `${state.total} ريال`;
-        $('paymentModal').classList.add('active');
-        renderBookedSlots();
-        resetForm();
-      } else {
-        showToast('فشل حفظ الحجز. تحقق من الاتصال بـ Firebase');
-      }
-    });
-  } else {
-    console.error("❌ لم يتم العثور على زر التأكيد (confirmBtn)");
-  }
-
-  // 4. تحديث الملخص عند التغيير
-  ['bookingDate', 'startTime', 'hours'].forEach(id => {
-    const el = $(id);
-    if (el) el.addEventListener('input', updateSummary);
-  });
-
-  // 5. تغيير التاريخ → تحديث الأوقات
-  const dateInput = $('bookingDate');
-  if (dateInput) {
-    dateInput.addEventListener('change', () => {
-      populateStartTimes();
-      renderBookedSlots();
-    });
-  }
-
-  // 6. معرض الصور
-  const silverGallery = document.getElementById('gallerySilver');
-  const goldGallery = document.getElementById('galleryGold');
-  const silverPkg = document.querySelector('.package-option[data-package="silver"]');
-  const goldPkg = document.querySelector('.package-option[data-package="gold"]');
-  
-  if (silverPkg && goldPkg) {
-    silverPkg.addEventListener('click', () => {
-      if (silverGallery) silverGallery.classList.add('active');
-      if (goldGallery) goldGallery.classList.remove('active');
-    });
-    goldPkg.addEventListener('click', () => {
-      if (goldGallery) goldGallery.classList.add('active');
-      if (silverGallery) silverGallery.classList.remove('active');
-    });
-    if (silverPkg.classList.contains('selected') && silverGallery) {
-      silverGallery.classList.add('active');
-    }
-  }
-
-  // 7. إغلاق المودال
-  const modal = $('paymentModal');
-  if (modal) {
-    modal.addEventListener('click', (e) => {
-      if (e.target.id === 'paymentModal') closeModal();
-    });
-  }
-
-  // 8. التهيئة
-  populateStartTimes();
-  setupDateLimits();
-  setDefaults();
-  updatePeopleCounter();
-  renderBookedSlots();
-  updateSummary();
-
-  // 9. جلب البيانات من Firestore
-  fetchBookingsFromFirestore();
+// ========== Modal ==========
+function closeModal() {
+  $('paymentModal').classList.remove('active');
+}
+$('paymentModal').addEventListener('click', (e) => {
+  if (e.target.id === 'paymentModal') closeModal();
 });
 
-// ========== دوال عامة (Global) ==========
-window.changePeople = changePeople;
-window.toggleCelebration = toggleCelebration;
-window.openLightbox = openLightbox;
-window.closeLightbox = closeLightbox;
-window.closeModal = closeModal;
-window.copyText = copyText;
-
-function closeModal() {
-  const m = $('paymentModal');
-  if (m) m.classList.remove('active');
-}
-
+// ========== Copy ==========
 function copyText(text, el) {
   navigator.clipboard.writeText(text);
   showToast('تم النسخ ✓', 'success');
 }
 
+// ========== Toast ==========
+let toastTimer;
+function showToast(msg, type = 'error') {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (type === 'success' ? ' success' : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 3500);
+}
+
+// ========== التحديث التلقائي ==========
+$('bookingDate').addEventListener('change', () => {
+  populateStartTimes();
+  renderBookedSlots();
+});
+
+document.querySelectorAll('.session-option').forEach(el => {
+  el.addEventListener('click', () => {
+    populateStartTimes();
+    renderBookedSlots();
+  });
+});
+
+// ========== منطق إظهار/إخفاء المعارض ==========
+function setupGallery() {
+  const silverGallery = document.getElementById('gallerySilver');
+  const goldGallery = document.getElementById('galleryGold');
+  const silverPkg = document.querySelector('.package-option[data-package="silver"]');
+  const goldPkg = document.querySelector('.package-option[data-package="gold"]');
+  
+  if (!silverPkg || !goldPkg) return;
+
+  silverPkg.addEventListener('click', () => {
+    if (silverGallery) silverGallery.classList.add('active');
+    if (goldGallery) goldGallery.classList.remove('active');
+  });
+
+  goldPkg.addEventListener('click', () => {
+    if (goldGallery) goldGallery.classList.add('active');
+    if (silverGallery) silverGallery.classList.remove('active');
+  });
+
+  if (silverPkg.classList.contains('selected') && silverGallery) {
+    silverGallery.classList.add('active');
+  }
+}
+
+// فتح الصورة بحجم كامل (Lightbox)
 function openLightbox(src) {
   let lightbox = document.getElementById('imageLightbox');
   
@@ -571,3 +596,18 @@ function closeLightbox() {
     document.body.style.overflow = '';
   }
 }
+
+document.addEventListener('DOMContentLoaded', setupGallery);
+
+// ========== Init ==========
+populateStartTimes();
+setupDateLimits();
+setDefaults();
+updatePeopleCounter();
+renderBookedSlots();
+updateSummary();
+
+// جلب البيانات الأولية من Firestore
+document.addEventListener('DOMContentLoaded', () => {
+  fetchBookingsFromFirestore();
+});
