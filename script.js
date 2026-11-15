@@ -1,17 +1,25 @@
-// ========== إعدادات Firebase (Firestore) ==========
+// ========== استيراد Firebase SDK v10 ==========
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  setDoc,
+  onSnapshot
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+// ========== إعدادات Firebase ==========
 const firebaseConfig = {
-  apiKey: "AIzaSyBQw74Em4Gcqrd3n9SCEKqEV6yuXA2Sgmg",
-  authDomain: "sukoon2026-e0430.firebaseapp.com",
-  projectId: "sukoon2026-e0430",
-  storageBucket: "sukoon2026-e0430.firebasestorage.app",
-  messagingSenderId: "128613817411",
-  appId: "1:128613817411:web:2e1736fa0e4b31bc2308f6"
+  apiKey: "AIzaSyCb29ClTbHwIEHl_ze5RHBZEN6jwZiySOc",
+  authDomain: "db2026-5807e.firebaseapp.com",
+  projectId: "db2026-5807e",
+  storageBucket: "db2026-5807e.firebasestorage.app",
+  messagingSenderId: "305741717208",
+  appId: "1:305741717208:web:4d7c6ea3d92fdaff8c41ad"
 };
 
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
-const db = firebase.firestore(); // Firestore
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 // ========== الإعدادات ==========
 const START_HOUR = 17;
@@ -137,7 +145,7 @@ function updatePeopleCounter() {
   }
 }
 
-// ========== تحميل الحجوزات (من Firestore) ==========
+// ========== تحميل الحجوزات (من Firestore v10) ==========
 window.cachedBookings = [];
 
 function getBookings() {
@@ -145,28 +153,29 @@ function getBookings() {
 }
 
 function fetchBookingsFromFirestore(callback) {
-  db.collection('bookings').onSnapshot((snapshot) => {
+  const bookingsRef = collection(db, 'bookings');
+  onSnapshot(bookingsRef, (snapshot) => {
     const data = [];
-    snapshot.forEach((doc) => {
-      data.push({ id: doc.id, ...doc.data() });
+    snapshot.forEach((docSnap) => {
+      data.push({ id: docSnap.id, ...docSnap.data() });
     });
     window.cachedBookings = data;
     if (callback) callback();
     if (typeof populateStartTimes === 'function') populateStartTimes();
     if (typeof renderBookedSlots === 'function') renderBookedSlots();
+  }, (error) => {
+    console.error("❌ خطأ في جلب الحجوزات:", error);
   });
 }
 
-function saveBooking(b) {
-  // نستخدم id كمعرف مستند
-  db.collection('bookings').doc(String(b.id)).set(b)
-    .then(() => {
-      console.log('تم حفظ الحجز بنجاح');
-    })
-    .catch((error) => {
-      console.error('خطأ في حفظ الحجز:', error);
-      showToast('حدث خطأ في حفظ الحجز، يرجى المحاولة لاحقاً');
-    });
+async function saveBooking(b) {
+  try {
+    await setDoc(doc(db, 'bookings', String(b.id)), b);
+    console.log('✅ تم حفظ الحجز بنجاح في Firestore');
+  } catch (error) {
+    console.error('❌ خطأ في حفظ الحجز:', error);
+    showToast('حدث خطأ في حفظ الحجز، يرجى المحاولة لاحقاً');
+  }
 }
 
 // ========== هل الوقت محجوز؟ ==========
@@ -185,7 +194,7 @@ function isTimeBooked(startH, hours) {
   return bookings.some(b => startH < b.endHour && endH > b.startHour);
 }
 
-// ========== توليد أوقات البدء (مع شطب الأوقات المحجوزة) ==========
+// ========== توليد أوقات البدء ==========
 function populateStartTimes() {
   const sel = $('startTime');
   const currentValue = sel.value;
@@ -417,7 +426,7 @@ function renderBookedSlots() {
 });
 
 // ========== تأكيد الحجز ==========
-$('confirmBtn').addEventListener('click', () => {
+$('confirmBtn').addEventListener('click', async () => {
   const name = $('customerName').value.trim();
   const phone = $('customerPhone').value.trim();
   const date = $('bookingDate').value;
@@ -475,12 +484,12 @@ $('confirmBtn').addEventListener('click', () => {
     celebration: state.celebration,
     createdAt: new Date().toISOString(),
   };
-  saveBooking(booking);
+
+  await saveBooking(booking);
 
   $('payAmount').textContent = `${state.total} ريال`;
   $('paymentModal').classList.add('active');
 
-  fetchBookingsFromFirestore();
   renderBookedSlots();
   resetForm();
 });
@@ -611,3 +620,11 @@ updateSummary();
 document.addEventListener('DOMContentLoaded', () => {
   fetchBookingsFromFirestore();
 });
+
+// جعل الدوال متاحة عالمياً للـ HTML
+window.changePeople = changePeople;
+window.toggleCelebration = toggleCelebration;
+window.openLightbox = openLightbox;
+window.closeLightbox = closeLightbox;
+window.closeModal = closeModal;
+window.copyText = copyText;

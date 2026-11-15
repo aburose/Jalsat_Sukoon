@@ -684,25 +684,31 @@ tr.row-cancelled td:last-child { text-decoration: none; opacity: 1; }
   </div>
 </div>
 
-<!-- Firebase SDK (Firestore) -->
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+<!-- Firebase SDK v10 + Dashboard Script -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import {
+  getFirestore,
+  collection,
+  doc,
+  onSnapshot,
+  updateDoc,
+  deleteDoc,
+  getDocs,
+  writeBatch
+} from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
-<script>
-// ========== إعدادات Firebase (Firestore) ==========
 const firebaseConfig = {
-  apiKey: "AIzaSyBQw74Em4Gcqrd3n9SCEKqEV6yuXA2Sgmg",
-  authDomain: "sukoon2026-e0430.firebaseapp.com",
-  projectId: "sukoon2026-e0430",
-  storageBucket: "sukoon2026-e0430.firebasestorage.app",
-  messagingSenderId: "128613817411",
-  appId: "1:128613817411:web:2e1736fa0e4b31bc2308f6"
+  apiKey: "AIzaSyCb29ClTbHwIEHl_ze5RHBZEN6jwZiySOc",
+  authDomain: "db2026-5807e.firebaseapp.com",
+  projectId: "db2026-5807e",
+  storageBucket: "db2026-5807e.firebasestorage.app",
+  messagingSenderId: "305741717208",
+  appId: "1:305741717208:web:4d7c6ea3d92fdaff8c41ad"
 };
 
-if (!firebase.apps.length) {
-  firebase.initializeApp(firebaseConfig);
-}
-const db = firebase.firestore();
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
 
 // ========== إدارة المستخدمين ==========
 const USERS_KEY = 'beachDashboardUsers';
@@ -733,7 +739,6 @@ function validateCredentials(username, password) {
   return getUsers().find(u => u.username === username && u.password === password);
 }
 
-// ========== دوال المصادقة ==========
 function isLoggedIn() {
   return !!sessionStorage.getItem(SESSION_KEY);
 }
@@ -789,12 +794,15 @@ function getBookings() {
 }
 
 function fetchBookings(callback) {
-  db.collection('bookings').onSnapshot((snapshot) => {
+  const bookingsRef = collection(db, 'bookings');
+  onSnapshot(bookingsRef, (snapshot) => {
     cachedBookings = [];
-    snapshot.forEach((doc) => {
-      cachedBookings.push({ id: doc.id, ...doc.data() });
+    snapshot.forEach((docSnap) => {
+      cachedBookings.push({ id: docSnap.id, ...docSnap.data() });
     });
     if (callback) callback();
+  }, (error) => {
+    console.error("❌ خطأ في جلب الحجوزات:", error);
   });
 }
 
@@ -809,7 +817,6 @@ function formatDate(iso) {
   return d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-// ========== الإحصائيات ==========
 function renderStats() {
   const list = getBookings();
   const total = list.reduce((s, b) => s + b.total, 0);
@@ -830,7 +837,6 @@ function renderStats() {
   `;
 }
 
-// ========== الفلترة ==========
 function getFilteredBookings() {
   const search  = $('filterSearch').value.trim().toLowerCase();
   const session = $('filterSession').value;
@@ -854,7 +860,6 @@ function getFilteredBookings() {
   });
 }
 
-// ========== الجدول ==========
 function renderTable() {
   const filtered = getFilteredBookings().sort((a,b) => new Date(b.date) - new Date(a.date));
   const tbody = document.querySelector('#bookingsTable tbody');
@@ -926,7 +931,6 @@ function renderTable() {
   }).join('');
 }
 
-// ========== إعادة تعيين الفلترة ==========
 function resetFilters() {
   $('filterSearch').value = '';
   $('filterSession').value = '';
@@ -937,7 +941,6 @@ function resetFilters() {
   renderTable();
 }
 
-// ========== ربط مستمعات الفلترة ==========
 function setupFilterListeners() {
   $('filterSearch').addEventListener('input', renderTable);
   $('filterSession').addEventListener('change', renderTable);
@@ -947,33 +950,37 @@ function setupFilterListeners() {
   $('filterDateTo').addEventListener('change', renderTable);
 }
 
-// ========== تأكيد الحجز ==========
-function confirmBooking(id) {
+// ========== إجراءات (v10) ==========
+async function confirmBooking(id) {
   const idx = cachedBookings.findIndex(b => String(b.id) === String(id));
   if (idx === -1) return;
   if (cachedBookings[idx].status === 'confirmed') return;
   if (!confirm(`تأكيد الحجز للعميل: ${cachedBookings[idx].name}؟`)) return;
 
-  db.collection('bookings').doc(id).update({ status: 'confirmed' })
-    .then(() => {
-      fetchBookings(() => { renderStats(); renderTable(); });
-    });
+  try {
+    await updateDoc(doc(db, 'bookings', id), { status: 'confirmed' });
+    fetchBookings(() => { renderStats(); renderTable(); });
+  } catch (err) {
+    console.error("❌ خطأ في التأكيد:", err);
+    alert('حدث خطأ، يرجى المحاولة لاحقاً');
+  }
 }
 
-// ========== إلغاء الحجز ==========
-function cancelBooking(id) {
+async function cancelBooking(id) {
   const idx = cachedBookings.findIndex(b => String(b.id) === String(id));
   if (idx === -1) return;
   if (cachedBookings[idx].status === 'cancelled') return;
   if (!confirm(`إلغاء الحجز للعميل: ${cachedBookings[idx].name}؟`)) return;
 
-  db.collection('bookings').doc(id).update({ status: 'cancelled' })
-    .then(() => {
-      fetchBookings(() => { renderStats(); renderTable(); });
-    });
+  try {
+    await updateDoc(doc(db, 'bookings', id), { status: 'cancelled' });
+    fetchBookings(() => { renderStats(); renderTable(); });
+  } catch (err) {
+    console.error("❌ خطأ في الإلغاء:", err);
+    alert('حدث خطأ، يرجى المحاولة لاحقاً');
+  }
 }
 
-// ========== فتح مودال التعديل ==========
 function openEditModal(id) {
   const booking = getBookings().find(b => String(b.id) === String(id));
   if (!booking) return;
@@ -1005,8 +1012,7 @@ function closeEditModal() {
   $('editModal').classList.remove('active');
 }
 
-// ========== حفظ التعديل ==========
-function saveEdit() {
+async function saveEdit() {
   const id = $('editBookingId').value;
   const name = $('editName').value.trim();
   const phone = $('editPhone').value.trim();
@@ -1050,34 +1056,41 @@ function saveEdit() {
   
   if (cachedBookings[idx].celebration) newTotal += 300;
 
-  db.collection('bookings').doc(id).update({
-    name, phone, date, startHour, endHour, hours, people, total: newTotal
-  }).then(() => {
-    fetchBookings(() => { renderStats(); renderTable(); closeEditModal(); });
-  });
-}
-
-// ========== حذف ==========
-function deleteBooking(id) {
-  if (!confirm('هل أنت متأكد من حذف هذا الحجز نهائيًا؟')) return;
-  db.collection('bookings').doc(id).delete()
-    .then(() => {
-      fetchBookings(() => { renderStats(); renderTable(); });
+  try {
+    await updateDoc(doc(db, 'bookings', id), {
+      name, phone, date, startHour, endHour, hours, people, total: newTotal
     });
+    fetchBookings(() => { renderStats(); renderTable(); closeEditModal(); });
+  } catch (err) {
+    console.error("❌ خطأ في التعديل:", err);
+    alert('حدث خطأ، يرجى المحاولة لاحقاً');
+  }
 }
 
-function clearAll() {
+async function deleteBooking(id) {
+  if (!confirm('هل أنت متأكد من حذف هذا الحجز نهائيًا؟')) return;
+  try {
+    await deleteDoc(doc(db, 'bookings', id));
+    fetchBookings(() => { renderStats(); renderTable(); });
+  } catch (err) {
+    console.error("❌ خطأ في الحذف:", err);
+  }
+}
+
+async function clearAll() {
   if (!confirm('سيتم حذف جميع الحجوزات نهائياً. متأكد؟')) return;
   
-  db.collection('bookings').get().then((snapshot) => {
-    const batch = db.batch();
-    snapshot.forEach((doc) => {
-      batch.delete(doc.ref);
+  try {
+    const snapshot = await getDocs(collection(db, 'bookings'));
+    const batch = writeBatch(db);
+    snapshot.forEach((docSnap) => {
+      batch.delete(docSnap.ref);
     });
-    return batch.commit();
-  }).then(() => {
+    await batch.commit();
     fetchBookings(() => { renderStats(); renderTable(); });
-  });
+  } catch (err) {
+    console.error("❌ خطأ في حذف الكل:", err);
+  }
 }
 
 function initDashboard() {
@@ -1088,7 +1101,7 @@ function initDashboard() {
   });
 }
 
-// ========== إدارة المستخدمين - الدوال ==========
+// ========== إدارة المستخدمين ==========
 function openUsersModal() {
   renderUsersTable();
   document.getElementById('usersModal').classList.add('active');
@@ -1203,6 +1216,24 @@ function deleteUser(id) {
   saveUsers(users);
   renderUsersTable();
 }
+
+// جعل الدوال متاحة عالمياً للـ HTML
+window.handleLogin = handleLogin;
+window.handleLogout = handleLogout;
+window.confirmBooking = confirmBooking;
+window.cancelBooking = cancelBooking;
+window.openEditModal = openEditModal;
+window.closeEditModal = closeEditModal;
+window.saveEdit = saveEdit;
+window.deleteBooking = deleteBooking;
+window.clearAll = clearAll;
+window.resetFilters = resetFilters;
+window.openUsersModal = openUsersModal;
+window.closeUsersModal = closeUsersModal;
+window.saveUser = saveUser;
+window.editUser = editUser;
+window.cancelEditUser = cancelEditUser;
+window.deleteUser = deleteUser;
 </script>
 </body>
 </html>
