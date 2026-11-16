@@ -89,7 +89,6 @@
         }
         .animate-float { animation: floatSlow 4s ease-in-out infinite; }
 
-        /* مؤشر الاتصال بالفايربيس */
         .db-status {
             position: fixed;
             bottom: 16px;
@@ -125,7 +124,6 @@
 </head>
 <body class="snow-navy-bg min-h-screen flex flex-col selection:bg-navy-100 selection:text-navy-900">
 
-    <!-- مؤشر حالة الاتصال -->
     <div id="db-status" class="db-status syncing">
         <span class="dot"></span>
         <span id="db-status-text">جارٍ الاتصال بالفايربيس...</span>
@@ -133,7 +131,6 @@
 
     <div id="toast-container" class="fixed top-5 left-5 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none"></div>
 
-    <!-- ==================== شريط التنقل العلوي ==================== -->
     <header class="sticky top-0 z-40 glass-card border-b border-navy-100 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
             <a href="#" onclick="switchView('client')" class="flex items-center gap-3 group">
@@ -167,9 +164,6 @@
         </div>
     </header>
 
-    <!-- =========================================================================================
-         الواجهة الأولى: صفحة العملاء
-    ========================================================================================= -->
     <main id="client-view" class="flex-grow">
         
         <section class="relative overflow-hidden py-14 sm:py-20 lg:py-24 border-b border-navy-100/60">
@@ -956,10 +950,6 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-3">
-                <button onclick="openManualBookingModal()" class="px-4 py-2.5 rounded-xl bg-navy-900 hover:bg-navy-950 text-white font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shadow-sm">
-                    <i class="fa-solid fa-plus"></i>
-                    <span>إضافة حجز يدوي</span>
-                </button>
                 <button onclick="handleAdminLogout()" class="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 font-semibold text-xs sm:text-sm transition-all flex items-center gap-2">
                     <i class="fa-solid fa-right-from-bracket"></i>
                     <span>تسجيل الخروج</span>
@@ -1226,14 +1216,14 @@
         </div>
     </div>
 
-    <!-- =========================================================================================
-         Firebase SDK + Realtime Database + منطق التطبيق
-    ========================================================================================= -->
+    <!-- ============================================================
+         الجزء 1: Firebase SDK (Module) — يكشف window.FB فقط
+         ============================================================ -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-app.js";
-        import { getDatabase, ref, set, get, push, remove, update, onValue, off, serverTimestamp } from "https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js";
+        import { getDatabase, ref, set, get, push, remove, update, onValue }
+            from "https://www.gstatic.com/firebasejs/13.3.0/firebase-database.js";
 
-        // ===== Firebase Config =====
         const firebaseConfig = {
             apiKey: "AIzaSyBQw74Em4Gcqrd3n9SCEKqEV6yuXA2Sgmg",
             authDomain: "sukoon2026-e0430.firebaseapp.com",
@@ -1245,23 +1235,34 @@
         };
 
         const app = initializeApp(firebaseConfig);
-        const db = getDatabase(app);
+        const db  = getDatabase(app);
 
-        // ===== حالة التطبيق في الذاكرة =====
-        // سيتم مزامنتها لحظياً من Firebase
+        // نكشف فقط الدوال المطلوبة في window — بدون أي منطق تطبيقي
+        window.FB = {
+            db,
+            ref: (...a) => ref(db, ...a),
+            set, get, push, remove, update, onValue
+        };
+
+        window.dispatchEvent(new Event('firebase-ready'));
+        console.log('✅ Firebase SDK ready');
+    </script>
+
+    <!-- ============================================================
+         الجزء 2: منطق التطبيق (Script عادي — كل الدوال في window)
+         ============================================================ -->
+    <script>
+        // ===== الحالة =====
         window.__APP_STATE__ = {
             bookings: [],
             users: [],
             currentAdminName: null,
-            dbConnected: false,
             bookingsLoaded: false,
             usersLoaded: false
         };
 
-        // ===== مفاتيح الجلسة المحلية (فقط للـ Auth session) =====
-        const AUTH_SESSION_KEY = 'sukoon_admin_session_v2'; // sessionStorage فقط
+        const AUTH_SESSION_KEY = 'sukoon_admin_session_v2';
 
-        // ===== الثوابت =====
         const SILVER_PRICES = { 1: 60, 2: 120, 3: 180, 4: 240, 5: 275, 6: 330 };
         const GOLD_PRICES   = { 1: 80, 2: 160, 3: 240, 4: 320, 5: 350, 6: 400 };
         const CELEBRATION_PACKAGE_PRICE = 300;
@@ -1283,7 +1284,7 @@
             { value: 29, label: '5:00 صباحاً' }
         ];
 
-        // ===== أدوات مساعدة =====
+        // ===== أدوات =====
         function getFormattedDateOffset(daysOffset) {
             const date = new Date();
             date.setDate(date.getDate() + daysOffset);
@@ -1291,12 +1292,15 @@
         }
 
         function formatExtendedHour(extHour) {
-            const normalized = extHour % 24;
-            if (normalized === 0) return '12:00 ص';
-            if (normalized === 12) return '12:00 م';
-            if (normalized > 12) return `${normalized - 12}:00 م`;
-            return `${normalized}:00 ص`;
+            const n = Number(extHour) % 24;
+            if (n === 0) return '12:00 ص';
+            if (n === 12) return '12:00 م';
+            if (n > 12) return `${n - 12}:00 م`;
+            return `${n}:00 ص`;
         }
+
+        function getBookings() { return window.__APP_STATE__.bookings || []; }
+        function getUsers()    { return window.__APP_STATE__.users || []; }
 
         function updateDbStatus(status, text) {
             const el = document.getElementById('db-status');
@@ -1306,51 +1310,29 @@
             if (txt) txt.textContent = text;
         }
 
-        // ===== قراءة الحجوزات من الذاكرة (المزامنة مع Firebase) =====
-        function getBookings() {
-            return window.__APP_STATE__.bookings || [];
-        }
-        function getUsers() {
-            return window.__APP_STATE__.users || [];
-        }
-
-        // ===== فحص تعارض الأوقات =====
         function checkTimeConflict(sessionNumber, date, startHour, duration) {
             const endHour = startHour + duration;
-            const bookings = getBookings().filter(b =>
+            const list = getBookings().filter(b =>
                 String(b.sessionNumber) === String(sessionNumber) &&
                 b.date === date &&
                 b.status !== 'cancelled'
             );
-            for (const booking of bookings) {
-                if (startHour < (Number(booking.startHour) + Number(booking.duration)) &&
-                    endHour > Number(booking.startHour)) {
-                    return booking;
-                }
+            for (const b of list) {
+                if (startHour < (Number(b.startHour) + Number(b.duration)) &&
+                    endHour > Number(b.startHour)) return b;
             }
             return null;
         }
 
-        // =========================================================================================
-        //                         الربط مع Firebase Realtime Database
-        // =========================================================================================
-
-        // --- مفاتيح الجذر في قاعدة البيانات ---
-        const DB_BOOKINGS = 'bookings';
-        const DB_USERS    = 'users';
-        const DB_META     = 'meta';
-
-        // --- مزامنة الحجوزات لحظياً ---
+        // =====================================================================
+        //   مستمعات Firebase
+        // =====================================================================
         function attachBookingsListener() {
-            const bookingsRef = ref(db, DB_BOOKINGS);
-            onValue(bookingsRef, (snapshot) => {
-                const data = snapshot.val() || {};
-                // تحويل الكائن إلى مصفوفة مع إضافة id من المفتاح
-                const arr = Object.entries(data).map(([id, val]) => ({
-                    id,
-                    ...val
-                }));
-                // ترتيب حسب تاريخ الإنشاء (الأحدث أولاً)
+            if (!window.FB) { setTimeout(attachBookingsListener, 100); return; }
+            const { ref, onValue } = window.FB;
+            onValue(ref('bookings'), (snap) => {
+                const data = snap.val() || {};
+                const arr = Object.entries(data).map(([id, v]) => ({ id, ...v }));
                 arr.sort((a, b) => {
                     const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
                     const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
@@ -1358,54 +1340,49 @@
                 });
                 window.__APP_STATE__.bookings = arr;
                 window.__APP_STATE__.bookingsLoaded = true;
-                updateDbStatus('online', 'متصل — يتم التحديث لحظياً');
+                updateDbStatus('online', 'متصل — تحديث لحظي');
 
-                // إعادة عرض ما هو ظاهر حالياً
                 if (!document.getElementById('client-view')?.classList.contains('hidden')) {
                     updateBookingCalculations();
                 }
                 if (!document.getElementById('admin-dashboard-view')?.classList.contains('hidden')) {
                     refreshDashboardData();
                 }
-            }, (error) => {
-                console.error('Bookings listener error:', error);
+            }, (err) => {
+                console.error('Bookings listener error:', err);
                 updateDbStatus('offline', 'فشل الاتصال بقاعدة البيانات');
-                showToast('تعذر الاتصال بقاعدة البيانات، تحقق من اتصالك.', 'error');
             });
         }
 
-        // --- مزامنة المستخدمين لحظياً ---
         function attachUsersListener() {
-            const usersRef = ref(db, DB_USERS);
-            onValue(usersRef, (snapshot) => {
-                const data = snapshot.val() || {};
-                const arr = Object.entries(data).map(([id, val]) => ({
-                    id,
-                    ...val
-                }));
+            if (!window.FB) { setTimeout(attachUsersListener, 100); return; }
+            const { ref, onValue } = window.FB;
+            onValue(ref('users'), (snap) => {
+                const data = snap.val() || {};
+                const arr = Object.entries(data).map(([id, v]) => ({ id, ...v }));
                 window.__APP_STATE__.users = arr;
                 window.__APP_STATE__.usersLoaded = true;
 
                 if (!document.getElementById('admin-dashboard-view')?.classList.contains('hidden')) {
                     renderDashboardUsers();
                 }
-            }, (error) => {
-                console.error('Users listener error:', error);
-            });
+            }, (err) => console.error('Users listener error:', err));
         }
 
-        // --- تهيئة البيانات الأولية (مرة واحدة فقط) ---
+        // =====================================================================
+        //   تهيئة البيانات الأولية (مرة واحدة)
+        // =====================================================================
         async function initializeFirebaseData() {
-            try {
-                const metaSnap = await get(ref(db, DB_META + '/initialized'));
-                if (metaSnap.exists() && metaSnap.val() === true) {
-                    return; // تم التهيئة مسبقاً
-                }
+            if (!window.FB) { await new Promise(r => setTimeout(r, 200)); return initializeFirebaseData(); }
+            const { ref, get, set } = window.FB;
 
-                // تهيئة المستخدم admin الافتراضي
-                const usersSnap = await get(ref(db, DB_USERS));
+            try {
+                const metaSnap = await get(ref('meta/initialized'));
+                if (metaSnap.exists() && metaSnap.val() === true) return;
+
+                const usersSnap = await get(ref('users'));
                 if (!usersSnap.exists()) {
-                    await set(ref(db, DB_USERS), {
+                    await set(ref('users'), {
                         'USR-1': {
                             fullName: 'المدير العام - سكون',
                             username: 'admin',
@@ -1417,69 +1394,55 @@
                     });
                 }
 
-                // حجوزات تجريبية
-                const bookingsSnap = await get(ref(db, DB_BOOKINGS));
+                const bookingsSnap = await get(ref('bookings'));
                 if (!bookingsSnap.exists()) {
-                    const todayStr = getFormattedDateOffset(0);
-                    await set(ref(db, DB_BOOKINGS), {
+                    const today = getFormattedDateOffset(0);
+                    await set(ref('bookings'), {
                         'SK-1041': {
-                            sessionNumber: '101',
-                            packageType: 'gold',
-                            date: todayStr,
-                            startHour: 20,
-                            duration: 3,
-                            guests: 4,
-                            celebration: true,
-                            customerName: 'عبدالرحمن الزهراني',
-                            customerPhone: '0551234567',
-                            totalPrice: 540,
-                            status: 'confirmed',
+                            sessionNumber: '101', packageType: 'gold', date: today,
+                            startHour: 20, duration: 3, guests: 4, celebration: true,
+                            customerName: 'عبدالرحمن الزهراني', customerPhone: '0551234567',
+                            totalPrice: 540, status: 'confirmed',
                             createdAt: new Date().toISOString()
                         },
                         'SK-1042': {
-                            sessionNumber: '102',
-                            packageType: 'silver',
-                            date: todayStr,
-                            startHour: 22,
-                            duration: 2,
-                            guests: 2,
-                            celebration: false,
-                            customerName: 'نورة المالكي',
-                            customerPhone: '0509876543',
-                            totalPrice: 120,
-                            status: 'pending',
+                            sessionNumber: '102', packageType: 'silver', date: today,
+                            startHour: 22, duration: 2, guests: 2, celebration: false,
+                            customerName: 'نورة المالكي', customerPhone: '0509876543',
+                            totalPrice: 120, status: 'pending',
                             createdAt: new Date().toISOString()
                         }
                     });
                 }
 
-                await set(ref(db, DB_META + '/initialized'), true);
-                console.log('✅ Firebase data initialized');
+                await set(ref('meta/initialized'), true);
+                console.log('✅ Firebase initialized');
             } catch (err) {
-                console.error('Initialization error:', err);
-                showToast('خطأ في تهيئة البيانات: ' + err.message, 'error');
+                console.error('Init error:', err);
+                showToast('خطأ في التهيئة: ' + err.message, 'error');
             }
         }
 
-        // =========================================================================================
-        //                         منطق الحجز (Client Side)
-        // =========================================================================================
-
+        // =====================================================================
+        //   نموذج الحجز (Client)
+        // =====================================================================
         function setupBookingFormDefaults() {
             const today = getFormattedDateOffset(0);
             const maxTwoWeeks = getFormattedDateOffset(14);
-            document.getElementById('booking-date').min = today;
-            document.getElementById('booking-date').max = maxTwoWeeks;
-            document.getElementById('booking-date').value = today;
+            const dateInput = document.getElementById('booking-date');
+            if (!dateInput) return;
+
+            dateInput.min = today;
+            dateInput.max = maxTwoWeeks;
+            dateInput.value = today;
 
             const startSelect = document.getElementById('start-time');
             startSelect.innerHTML = '';
-
-            TIME_SLOTS.forEach((slot, index) => {
+            TIME_SLOTS.forEach((slot, i) => {
                 const opt = document.createElement('option');
                 opt.value = slot.value;
                 opt.textContent = slot.label;
-                if (index === 0) opt.selected = true;
+                if (i === 0) opt.selected = true;
                 startSelect.appendChild(opt);
             });
 
@@ -1488,32 +1451,29 @@
 
         function selectPackageAndScroll(pkgType) {
             const radio = document.querySelector(`input[name="packageType"][value="${pkgType}"]`);
-            if (radio) {
-                radio.checked = true;
-                handlePackageChange();
-            }
+            if (radio) { radio.checked = true; handlePackageChange(); }
             document.getElementById('booking-section').scrollIntoView({ behavior: 'smooth' });
         }
 
         function handlePackageChange() {
             const pkgType = document.querySelector('input[name="packageType"]:checked').value;
             const guestsInput = document.getElementById('guests-count');
-            const guestsHint = document.getElementById('guests-hint');
+            const guestsHint  = document.getElementById('guests-hint');
             const decBtn = document.getElementById('decrease-guests-btn');
             const incBtn = document.getElementById('increase-guests-btn');
 
             if (pkgType === 'silver') {
                 guestsInput.value = 2;
-                guestsInput.readOnly = true;
                 if (decBtn) decBtn.disabled = true;
                 if (incBtn) incBtn.disabled = true;
                 guestsHint.textContent = '* الباقة الفضية مخصصة لشخصين (2) فقط.';
             } else {
-                guestsInput.readOnly = true;
                 if (decBtn) decBtn.disabled = false;
                 if (incBtn) incBtn.disabled = false;
-                if (parseInt(guestsInput.value) < 1) guestsInput.value = 1;
-                if (parseInt(guestsInput.value) > 10) guestsInput.value = 10;
+                let v = parseInt(guestsInput.value) || 1;
+                if (v < 1) v = 1;
+                if (v > 10) v = 10;
+                guestsInput.value = v;
                 guestsHint.textContent = '* الباقة الذهبية تتيح اختيار عدد الأفراد (من 1 إلى 10 أشخاص).';
             }
             updateBookingCalculations();
@@ -1523,11 +1483,11 @@
             const pkgType = document.querySelector('input[name="packageType"]:checked').value;
             if (pkgType === 'silver') return;
             const guestsInput = document.getElementById('guests-count');
-            let current = parseInt(guestsInput.value) || 1;
-            current += change;
-            if (current < 1) current = 1;
-            if (current > 10) current = 10;
-            guestsInput.value = current;
+            let v = parseInt(guestsInput.value) || 1;
+            v += change;
+            if (v < 1) v = 1;
+            if (v > 10) v = 10;
+            guestsInput.value = v;
             updateBookingCalculations();
         }
 
@@ -1559,8 +1519,8 @@
             const statusBadge = document.getElementById('summary-status-badge');
 
             if (endHour > 30) {
-                alertBox.className = 'rounded-2xl p-4 border bg-rose-50 border-rose-200 text-rose-800 text-xs sm:text-sm space-y-1';
-                alertBox.innerHTML = `<div class="font-bold flex items-center gap-2"><i class="fa-solid fa-clock"></i><span>تنبيه: وقت انتهاء الحجز يتجاوز الساعة 6:00 صباحاً!</span></div><p>يرجى تقليل عدد الساعات أو اختيار وقت بداية أبكر.</p>`;
+                alertBox.className = 'rounded-2xl p-4 border bg-rose-50 border-rose-200 text-rose-800 text-xs sm:text-sm';
+                alertBox.innerHTML = `<div class="font-bold flex items-center gap-2"><i class="fa-solid fa-clock"></i><span>تنبيه: وقت الانتهاء يتجاوز 6:00 ص!</span></div>`;
                 alertBox.classList.remove('hidden');
                 submitBtn.disabled = true;
                 submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
@@ -1568,21 +1528,18 @@
             } else {
                 const conflict = checkTimeConflict(sessionNumber, date, startHour, duration);
                 if (conflict) {
-                    const otherSession = sessionNumber === '101' ? '102' : '101';
-                    const otherSessionFree = !checkTimeConflict(otherSession, date, startHour, duration);
-                    let altHtml = '';
-                    if (otherSessionFree) {
-                        altHtml += `<div class="mt-2 p-2 rounded-xl bg-navy-100 border border-navy-200 text-navy-950 text-xs font-semibold"><i class="fa-solid fa-lightbulb ml-1"></i><strong>خبر سار:</strong> <u>جلسة ${otherSession}</u> متاحة في نفس هذا الوقت تماماً!</div>`;
-                    }
+                    const other = sessionNumber === '101' ? '102' : '101';
+                    const otherFree = !checkTimeConflict(other, date, startHour, duration);
+                    let alt = otherFree ? `<div class="mt-2 p-2 rounded-xl bg-navy-100 border border-navy-200 text-navy-950 text-xs font-semibold"><i class="fa-solid fa-lightbulb ml-1"></i><strong>خبر سار:</strong> جلسة ${other} متاحة!</div>` : '';
                     alertBox.className = 'rounded-2xl p-4 border bg-rose-50 border-rose-200 text-rose-800 text-xs sm:text-sm';
-                    alertBox.innerHTML = `<div class="font-bold flex items-center gap-2 mb-1"><i class="fa-solid fa-triangle-exclamation"></i><span>عذراً، الوقت الذي اخترته لـ (جلسة ${sessionNumber}) غير متاح!</span></div><p class="text-xs text-rose-700">محجوزة مسبقاً من <strong>${formatExtendedHour(conflict.startHour)}</strong> إلى <strong>${formatExtendedHour(conflict.startHour + conflict.duration)}</strong>.</p>${altHtml}`;
+                    alertBox.innerHTML = `<div class="font-bold flex items-center gap-2 mb-1"><i class="fa-solid fa-triangle-exclamation"></i><span>جلسة ${sessionNumber} غير متاحة في هذا الوقت.</span></div><p class="text-xs text-rose-700">محجوزة من ${formatExtendedHour(conflict.startHour)} إلى ${formatExtendedHour(conflict.startHour + conflict.duration)}.</p>${alt}`;
                     alertBox.classList.remove('hidden');
                     submitBtn.disabled = true;
                     submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
                     statusBadge.textContent = 'غير متاح (محجوز)';
                 } else {
                     alertBox.className = 'rounded-2xl p-3.5 border bg-navy-50 border-navy-200 text-navy-950 text-xs flex items-center justify-between font-semibold';
-                    alertBox.innerHTML = `<div class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-navy-900 text-base"></i><span><strong>جلسة ${sessionNumber}</strong> متاحة من <strong>${formatExtendedHour(startHour)}</strong> إلى <strong>${formatExtendedHour(endHour)}</strong></span></div><span class="text-navy-950 font-bold">جاهز للحجز</span>`;
+                    alertBox.innerHTML = `<div class="flex items-center gap-2"><i class="fa-solid fa-circle-check text-navy-900 text-base"></i><span>جلسة ${sessionNumber} متاحة من ${formatExtendedHour(startHour)} إلى ${formatExtendedHour(endHour)}</span></div><span class="text-navy-950 font-bold">جاهز للحجز</span>`;
                     alertBox.classList.remove('hidden');
                     submitBtn.disabled = false;
                     submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
@@ -1595,15 +1552,14 @@
         function renderDailySchedulePreview(date) {
             const container = document.getElementById('daily-schedule-preview');
             if (!container) return;
-            const bookings = getBookings().filter(b => b.date === date && b.status !== 'cancelled');
-            if (bookings.length === 0) {
+            const list = getBookings().filter(b => b.date === date && b.status !== 'cancelled');
+            if (!list.length) {
                 container.innerHTML = `<div class="p-2.5 rounded-xl bg-navy-50 border border-navy-100 text-navy-900 text-center font-semibold">جميع الأوقات متاحة في جلسة 101 وجلسة 102 لهذا اليوم ✨</div>`;
                 return;
             }
-            container.innerHTML = bookings.map(b => `<div class="flex items-center justify-between p-2 rounded-xl bg-white border border-navy-100 font-semibold shadow-xs"><span class="text-navy-950">جلسة ${b.sessionNumber}</span><span class="text-slate-600">محجوزة: ${formatExtendedHour(b.startHour)} - ${formatExtendedHour(b.startHour + b.duration)}</span></div>`).join('');
+            container.innerHTML = list.map(b => `<div class="flex items-center justify-between p-2 rounded-xl bg-white border border-navy-100 font-semibold"><span class="text-navy-950">جلسة ${b.sessionNumber}</span><span class="text-slate-600">محجوزة: ${formatExtendedHour(b.startHour)} - ${formatExtendedHour(b.startHour + b.duration)}</span></div>`).join('');
         }
 
-        // --- إرسال الحجز إلى Firebase ---
         async function handleBookingSubmit(event) {
             event.preventDefault();
             const submitBtn = document.getElementById('submit-booking-btn');
@@ -1619,52 +1575,40 @@
             const customerName = document.getElementById('customer-name').value.trim();
             const customerPhone = document.getElementById('customer-phone').value.trim();
 
-            // فحص التعارض مرة أخيرة (مع البيانات المحدّثة لحظياً)
             if (checkTimeConflict(sessionNumber, date, startHour, duration)) {
-                showToast('عذراً، هذا الوقت أصبح محجوزاً للتو. يرجى اختيار وقت آخر.', 'error');
+                showToast('عذراً، هذا الوقت أصبح محجوزاً. اختر وقتاً آخر.', 'error');
                 updateBookingCalculations();
                 return;
             }
 
             const basePrice = pkgType === 'silver' ? SILVER_PRICES[duration] : GOLD_PRICES[duration];
             const totalPrice = basePrice + (hasCelebration ? CELEBRATION_PACKAGE_PRICE : 0);
-
-            // توليد رقم مرجعي
-            const bookingRefId = 'SK-' + Math.floor(10000 + Math.random() * 90000);
+            const bookingId = 'SK-' + Math.floor(10000 + Math.random() * 90000);
 
             const newBooking = {
-                sessionNumber,
-                packageType: pkgType,
-                date,
-                startHour,
-                duration,
-                guests,
-                celebration: hasCelebration,
-                customerName,
-                customerPhone,
-                totalPrice,
-                status: 'pending',
-                createdAt: new Date().toISOString()
+                sessionNumber, packageType: pkgType, date, startHour, duration,
+                guests, celebration: hasCelebration, customerName, customerPhone,
+                totalPrice, status: 'pending', createdAt: new Date().toISOString()
             };
 
             try {
                 submitBtn.disabled = true;
-                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i><span>جارٍ حفظ الحجز...</span>';
+                submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin text-lg"></i><span>جارٍ الحفظ...</span>';
                 updateDbStatus('syncing', 'جارٍ حفظ الحجز...');
 
-                await set(ref(db, DB_BOOKINGS + '/' + bookingRefId), newBooking);
+                await window.FB.set(window.FB.ref('bookings/' + bookingId), newBooking);
 
-                updateDbStatus('online', 'متصل — يتم التحديث لحظياً');
-                openConfirmationModal({ id: bookingRefId, ...newBooking });
+                updateDbStatus('online', 'متصل — تحديث لحظي');
+                openConfirmationModal({ id: bookingId, ...newBooking });
 
                 document.getElementById('booking-form').reset();
                 setupBookingFormDefaults();
                 updateBookingCalculations();
-                showToast('تم حفظ حجزك في قاعدة البيانات بنجاح! يرجى تحويل العربون.', 'success');
+                showToast('تم حفظ حجزك بنجاح! يرجى تحويل العربون.', 'success');
             } catch (err) {
                 console.error('Booking save error:', err);
                 updateDbStatus('offline', 'فشل حفظ الحجز');
-                showToast('حدث خطأ أثناء حفظ الحجز: ' + err.message, 'error');
+                showToast('فشل الحفظ: ' + err.message, 'error');
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalHTML;
@@ -1679,8 +1623,8 @@
             document.getElementById('conf-datetime').textContent = `${booking.date} | من ${formatExtendedHour(booking.startHour)} إلى ${formatExtendedHour(booking.startHour + booking.duration)}`;
             document.getElementById('conf-total').textContent = `${booking.totalPrice} ريال`;
 
-            const waMessage = encodeURIComponent(`السلام عليكم جلسات سكون الشاطئية 🌊\nأرغب بتأكيد حجزي وإرسال إشعار تحويل العربون (50 ريال):\n• رقم الحجز: ${booking.id}\n• الاسم: ${booking.customerName}\n• الجلسة: جلسة ${booking.sessionNumber} (${pkgLabel})\n• التاريخ: ${booking.date}\n• الوقت: من ${formatExtendedHour(booking.startHour)} إلى ${formatExtendedHour(booking.startHour + booking.duration)}\n• الإجمالي: ${booking.totalPrice} ريال`);
-            document.getElementById('whatsapp-receipt-btn').href = `https://wa.me/966500630782?text=${waMessage}`;
+            const wa = encodeURIComponent(`السلام عليكم جلسات سكون الشاطئية 🌊\nأرغب بتأكيد حجزي:\n• رقم: ${booking.id}\n• الاسم: ${booking.customerName}\n• الجلسة: ${booking.sessionNumber} (${pkgLabel})\n• التاريخ: ${booking.date}\n• الوقت: من ${formatExtendedHour(booking.startHour)} إلى ${formatExtendedHour(booking.startHour + booking.duration)}\n• الإجمالي: ${booking.totalPrice} ريال`);
+            document.getElementById('whatsapp-receipt-btn').href = `https://wa.me/966500630782?text=${wa}`;
 
             const modal = document.getElementById('confirmation-modal');
             modal.classList.remove('hidden');
@@ -1693,9 +1637,9 @@
             modal.classList.remove('flex');
         }
 
-        // =========================================================================================
-        //                         التنقل بين الواجهات
-        // =========================================================================================
+        // =====================================================================
+        //   التنقل
+        // =====================================================================
         function switchView(viewName) {
             const clientView = document.getElementById('client-view');
             const loginView = document.getElementById('admin-login-view');
@@ -1735,13 +1679,10 @@
         }
 
         function handleAdminButtonClick() {
-            if (sessionStorage.getItem(AUTH_SESSION_KEY)) { switchView('dashboard'); }
-            else { switchView('login'); }
+            if (sessionStorage.getItem(AUTH_SESSION_KEY)) switchView('dashboard');
+            else switchView('login');
         }
 
-        // =========================================================================================
-        //                         تسجيل الدخول (من Firebase)
-        // =========================================================================================
         async function handleAdminLogin(event) {
             event.preventDefault();
             const usernameInput = document.getElementById('login-username').value.trim();
@@ -1753,10 +1694,9 @@
             loadingBox.classList.remove('hidden');
 
             try {
-                // قراءة مباشرة من Firebase (لحظية)
-                const usersSnap = await get(ref(db, DB_USERS));
-                const usersData = usersSnap.val() || {};
-                const matched = Object.entries(usersData)
+                const snap = await window.FB.get(window.FB.ref('users'));
+                const data = snap.val() || {};
+                const matched = Object.entries(data)
                     .map(([id, u]) => ({ id, ...u }))
                     .find(u => u.username === usernameInput && u.password === passwordInput);
 
@@ -1764,7 +1704,7 @@
                     sessionStorage.setItem(AUTH_SESSION_KEY, matched.fullName || matched.username);
                     sessionStorage.setItem(AUTH_SESSION_KEY + '_uid', matched.id);
                     document.getElementById('login-password').value = '';
-                    showToast(`مرحباً بك ${matched.fullName}`, 'success');
+                    showToast(`مرحباً ${matched.fullName}`, 'success');
                     switchView('dashboard');
                 } else {
                     errorBox.classList.remove('hidden');
@@ -1772,7 +1712,7 @@
                 }
             } catch (err) {
                 console.error('Login error:', err);
-                showToast('خطأ في الاتصال بقاعدة البيانات: ' + err.message, 'error');
+                showToast('خطأ في الاتصال: ' + err.message, 'error');
             } finally {
                 loadingBox.classList.add('hidden');
             }
@@ -1781,13 +1721,10 @@
         function handleAdminLogout() {
             sessionStorage.removeItem(AUTH_SESSION_KEY);
             sessionStorage.removeItem(AUTH_SESSION_KEY + '_uid');
-            showToast('تم تسجيل الخروج بنجاح', 'info');
+            showToast('تم تسجيل الخروج', 'info');
             switchView('client');
         }
 
-        // =========================================================================================
-        //                         لوحة التحكم
-        // =========================================================================================
         function switchDashboardTab(tab) {
             const bookingsTab = document.getElementById('dashboard-tab-bookings');
             const usersTab = document.getElementById('dashboard-tab-users');
@@ -1819,9 +1756,9 @@
             const bookings = getBookings();
             const confirmed = bookings.filter(b => b.status === 'confirmed');
             const pending = bookings.filter(b => b.status === 'pending');
-            const todayStr = getFormattedDateOffset(0);
-            const future = bookings.filter(b => b.date > todayStr && b.status !== 'cancelled');
-            const revenue = bookings.filter(b => b.status !== 'cancelled').reduce((sum, b) => sum + Number(b.totalPrice || 0), 0);
+            const today = getFormattedDateOffset(0);
+            const future = bookings.filter(b => b.date > today && b.status !== 'cancelled');
+            const revenue = bookings.filter(b => b.status !== 'cancelled').reduce((s, b) => s + Number(b.totalPrice || 0), 0);
 
             document.getElementById('stat-total-bookings').textContent = bookings.length;
             document.getElementById('stat-confirmed-bookings').textContent = confirmed.length;
@@ -1847,21 +1784,20 @@
             const packageFilter = document.getElementById('filter-package').value;
             const statusFilter = document.getElementById('filter-status').value;
             const dateFilter = document.getElementById('filter-date').value;
-            const searchQuery = document.getElementById('search-booking-input').value.trim().toLowerCase();
+            const q = document.getElementById('search-booking-input').value.trim().toLowerCase();
 
             let bookings = [...getBookings()];
             if (sessionFilter !== 'all') bookings = bookings.filter(b => String(b.sessionNumber) === sessionFilter);
             if (packageFilter !== 'all') bookings = bookings.filter(b => b.packageType === packageFilter);
             if (statusFilter !== 'all') bookings = bookings.filter(b => b.status === statusFilter);
             if (dateFilter) bookings = bookings.filter(b => b.date === dateFilter);
-            if (searchQuery) bookings = bookings.filter(b =>
-                (b.customerName || '').toLowerCase().includes(searchQuery) ||
-                (b.customerPhone || '').includes(searchQuery) ||
-                (b.id || '').toLowerCase().includes(searchQuery)
-            );
+            if (q) bookings = bookings.filter(b =>
+                (b.customerName || '').toLowerCase().includes(q) ||
+                (b.customerPhone || '').includes(q) ||
+                (b.id || '').toLowerCase().includes(q));
 
-            if (bookings.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400 font-medium">لا توجد حجوزات مطابقة لخيارات البحث الحالية.</td></tr>`;
+            if (!bookings.length) {
+                tbody.innerHTML = `<tr><td colspan="8" class="py-10 text-center text-slate-400 font-medium">لا توجد حجوزات مطابقة.</td></tr>`;
                 return;
             }
 
@@ -1869,10 +1805,11 @@
                 const pkgBadge = b.packageType === 'silver'
                     ? '<span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-bold">الباقة الفضية</span>'
                     : '<span class="px-2 py-0.5 rounded bg-navy-900 text-white text-[11px] font-bold">الذهبية VIP</span>';
-                let statusBadge = '';
-                if (b.status === 'confirmed') statusBadge = '<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold">مؤكد</span>';
-                else if (b.status === 'pending') statusBadge = '<span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold">بانتظار العربون</span>';
-                else statusBadge = '<span class="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300 text-xs font-bold">ملغي</span>';
+                const statusBadge = b.status === 'confirmed'
+                    ? '<span class="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-bold">مؤكد</span>'
+                    : b.status === 'pending'
+                        ? '<span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-xs font-bold">بانتظار العربون</span>'
+                        : '<span class="px-2.5 py-1 rounded-full bg-rose-100 text-rose-800 border border-rose-300 text-xs font-bold">ملغي</span>';
 
                 return `
                     <tr class="hover:bg-navy-50/45 transition-colors">
@@ -1885,8 +1822,8 @@
                         <td class="py-3.5 px-4">${statusBadge}</td>
                         <td class="py-3.5 px-4">
                             <div class="flex items-center justify-center gap-1.5">
-                                ${b.status !== 'confirmed' ? `<button onclick="updateBookingStatus('${b.id}', 'confirmed')" title="تأكيد الحجز" class="p-2 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors"><i class="fa-solid fa-check"></i></button>` : ''}
-                                ${b.status !== 'cancelled' ? `<button onclick="updateBookingStatus('${b.id}', 'cancelled')" title="إلغاء الحجز" class="p-2 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors"><i class="fa-solid fa-ban"></i></button>` : ''}
+                                ${b.status !== 'confirmed' ? `<button onclick="updateBookingStatus('${b.id}','confirmed')" title="تأكيد الحجز" class="p-2 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition-colors"><i class="fa-solid fa-check"></i></button>` : ''}
+                                ${b.status !== 'cancelled' ? `<button onclick="updateBookingStatus('${b.id}','cancelled')" title="إلغاء الحجز" class="p-2 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-800 transition-colors"><i class="fa-solid fa-ban"></i></button>` : ''}
                                 <button onclick="deleteBookingRecord('${b.id}')" title="حذف نهائي" class="p-2 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 transition-colors"><i class="fa-solid fa-trash"></i></button>
                             </div>
                         </td>
@@ -1895,10 +1832,9 @@
             }).join('');
         }
 
-        // --- تحديث حالة الحجز في Firebase ---
         async function updateBookingStatus(bookingId, newStatus) {
             try {
-                await update(ref(db, DB_BOOKINGS + '/' + bookingId), { status: newStatus });
+                await window.FB.update(window.FB.ref('bookings/' + bookingId), { status: newStatus });
                 const booking = getBookings().find(b => b.id === bookingId);
                 const label = booking ? booking.customerName : '';
                 showToast(
@@ -1927,7 +1863,7 @@
             const id = pendingDeleteBookingId;
             closeDeleteConfirmModal();
             try {
-                await remove(ref(db, DB_BOOKINGS + '/' + id));
+                await window.FB.remove(window.FB.ref('bookings/' + id));
                 showToast('تم حذف سجل الحجز من قاعدة البيانات نهائياً', 'info');
             } catch (err) {
                 console.error('Delete error:', err);
@@ -1942,9 +1878,6 @@
             modal.classList.remove('flex');
         }
 
-        // =========================================================================================
-        //                         إدارة المستخدمين
-        // =========================================================================================
         async function handleAddUser(event) {
             event.preventDefault();
             const fullName = document.getElementById('new-user-fullname').value.trim();
@@ -1964,16 +1897,13 @@
 
             const newId = 'USR-' + Date.now();
             const newUser = {
-                fullName,
-                username,
-                password,
-                role,
+                fullName, username, password, role,
                 isPrimaryAdmin: false,
                 createdAt: new Date().toISOString()
             };
 
             try {
-                await set(ref(db, DB_USERS + '/' + newId), newUser);
+                await window.FB.set(window.FB.ref('users/' + newId), newUser);
                 document.getElementById('new-user-fullname').value = '';
                 document.getElementById('new-user-username').value = '';
                 document.getElementById('new-user-password').value = '';
@@ -2048,11 +1978,8 @@
 
             try {
                 const existing = getUsers().find(u => u.id === userId) || {};
-                await update(ref(db, DB_USERS + '/' + userId), {
-                    fullName,
-                    username,
-                    password,
-                    role,
+                await window.FB.update(window.FB.ref('users/' + userId), {
+                    fullName, username, password, role,
                     isPrimaryAdmin: !!existing.isPrimaryAdmin
                 });
                 closeEditUserModal();
@@ -2080,7 +2007,7 @@
             const id = pendingDeleteUserId;
             closeDeleteUserConfirmModal();
             try {
-                await remove(ref(db, DB_USERS + '/' + id));
+                await window.FB.remove(window.FB.ref('users/' + id));
                 showToast('تم حذف حساب المستخدم نهائياً من Firebase', 'info');
             } catch (err) {
                 console.error('Delete user error:', err);
@@ -2094,9 +2021,9 @@
             document.getElementById('delete-user-confirm-modal').classList.remove('flex');
         }
 
-        // =========================================================================================
-        //                         أدوات مساعدة عامة
-        // =========================================================================================
+        // =====================================================================
+        //   أدوات عامة
+        // =====================================================================
         function copyTextToClipboard(text, label) {
             const tempInput = document.createElement('input');
             tempInput.value = text;
@@ -2131,31 +2058,9 @@
             }, 3500);
         }
 
-        // =========================================================================================
-        //                         بدء التشغيل
-        // =========================================================================================
-        window.addEventListener('DOMContentLoaded', async () => {
-            document.getElementById('current-year').textContent = new Date().getFullYear();
-
-            // 1. تهيئة البيانات الأولية في Firebase (إن لم تكن موجودة)
-            updateDbStatus('syncing', 'جارٍ تهيئة قاعدة البيانات...');
-            await initializeFirebaseData();
-
-            // 2. بدء الاستماع اللحظي
-            attachBookingsListener();
-            attachUsersListener();
-
-            // 3. تهيئة النموذج
-            setupBookingFormDefaults();
-
-            // 4. استعادة جلسة الأدمن (إن وجدت)
-            const savedAdmin = sessionStorage.getItem(AUTH_SESSION_KEY);
-            if (savedAdmin) {
-                document.getElementById('admin-btn-text').textContent = 'العودة للداش بورد';
-            }
-        });
-
-        // تصدير الدوال المستخدمة في HTML
+        // =====================================================================
+        //   تصدير الدوال إلى window (ضروري لأن onclick يحتاج نطاقًا عامًا)
+        // =====================================================================
         window.switchView = switchView;
         window.handleAdminButtonClick = handleAdminButtonClick;
         window.handleAdminLogin = handleAdminLogin;
@@ -2181,7 +2086,26 @@
         window.executeDeleteUser = executeDeleteUser;
         window.closeDeleteUserConfirmModal = closeDeleteUserConfirmModal;
         window.copyTextToClipboard = copyTextToClipboard;
-        window.openManualBookingModal = () => showToast('سيتم إضافة هذه الميزة قريباً', 'info');
+
+        // =====================================================================
+        //   بدء التشغيل
+        // =====================================================================
+        window.addEventListener('DOMContentLoaded', async () => {
+            document.getElementById('current-year').textContent = new Date().getFullYear();
+
+            updateDbStatus('syncing', 'جارٍ تهيئة قاعدة البيانات...');
+            await initializeFirebaseData();
+
+            attachBookingsListener();
+            attachUsersListener();
+
+            setupBookingFormDefaults();
+
+            const savedAdmin = sessionStorage.getItem(AUTH_SESSION_KEY);
+            if (savedAdmin) {
+                document.getElementById('admin-btn-text').textContent = 'العودة للداش بورد';
+            }
+        });
     </script>
 </body>
 </html>
